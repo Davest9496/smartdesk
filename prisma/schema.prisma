@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// MULTI-TENANT CORE MODELS
+// ============================================================================
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users     User[]
+  providers Provider[]
+  services  Service[]
+  bookings  Booking[]
+  settings  CompanySettings?
+
+  @@map("companies")
+}
+
+model CompanySettings {
+  id           String   @id @default(cuid())
+  companyId    String   @unique
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Localisation
+  timeZone     String   @default("Europe/London")
+  currency     String   @default("GBP")
+  
+  // Branding
+  brandColour  String   @default("#000000")
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("company_settings")
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  email     String   
+  password  String
+  name      String
+  role      UserRole @default(PROVIDER)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  PROVIDER
+}
+
+// ============================================================================
+// CLIENT (CUSTOMER) MODEL
+// ============================================================================
+
+model Client {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  bookings  Booking[]
+
+  @@map("clients")
+}
+
+// ============================================================================
+// PROVIDER (STAFF) MODEL
+// ============================================================================
+
+model Provider {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  name      String
+  email     String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  services      ServiceProvider[]
+  workingHours  WorkingHours[]
+  bookings      Booking[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@map("providers")
+}
+
+// ============================================================================
+// SERVICE MODEL
+// ============================================================================
+
+model Service {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  duration    Int      // Duration in minutes
+  price       Decimal  @db.Decimal(10, 2)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  providers   ServiceProvider[]
+  bookings    Booking[]
+
+  @@index([companyId])
+  @@map("services")
+}
+
+// ============================================================================
+// SERVICE-PROVIDER JUNCTION (Many-to-Many)
+// ============================================================================
+
+model ServiceProvider {
+  serviceId  String
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  assignedAt DateTime @default(now())
+
+  @@id([serviceId, providerId])
+  @@map("service_providers")
+}
+
+// ============================================================================
+// WORKING HOURS (MINIMAL ROTA)
+// ============================================================================
+
+model WorkingHours {
+  id         String   @id @default(cuid())
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime  String   // Format: "HH:mm" (e.g., "09:00")
+  endTime    String   // Format: "HH:mm" (e.g., "17:00")
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([providerId])
+  @@map("working_hours")
+}
+
+// ============================================================================
+// BOOKING MODEL
+// ============================================================================
+
+model Booking {
+  id         String        @id @default(cuid())
+  companyId  String
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  serviceId  String
+  service    Service       @relation(fields: [serviceId], references: [id])
+  
+  providerId String
+  provider   Provider      @relation(fields: [providerId], references: [id])
+  
+  clientId   String
+  client     Client        @relation(fields: [clientId], references: [id])
+  
+  startTime  DateTime
+  endTime    DateTime
+  status     BookingStatus @default(PENDING)
+  
+  // Payment
+  paymentId  String?       @unique
+  amount     Decimal       @db.Decimal(10, 2)
+  
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([companyId])
+  @@index([providerId, startTime])
+  @@index([clientId])
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
