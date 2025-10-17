@@ -15,6 +15,8 @@ model Company {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
+  subdomain String?  @unique // For future multi-tenant routing (e.g., company.smartdesk.com)
+  isActive  Boolean  @default(true) // Soft deletion / suspension capability
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -36,9 +38,16 @@ model CompanySettings {
   // Localisation
   timeZone     String   @default("Europe/London")
   currency     String   @default("GBP")
+  dateFormat   String   @default("dd/MM/yyyy") // UK date format
   
   // Branding
   brandColour  String   @default("#000000")
+  logoUrl      String?  // For future branding
+  
+  // Booking Configuration
+  bufferTime   Int      @default(0) // Minutes between appointments
+  minAdvance   Int      @default(60) // Minimum minutes in advance for booking
+  maxAdvance   Int      @default(10080) // Maximum minutes in advance (default: 1 week)
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -47,7 +56,7 @@ model CompanySettings {
 }
 
 // ============================================================================
-// USER MANAGEMENT
+// USER MANAGEMENT (Admin/Provider Authentication)
 // ============================================================================
 
 model User {
@@ -56,25 +65,28 @@ model User {
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   
   email     String   
-  password  String
+  password  String   // Bcrypt hashed
   name      String
   role      UserRole @default(PROVIDER)
+  isActive  Boolean  @default(true) // Allow account suspension
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  lastLogin DateTime?
 
-  @@unique([companyId, email])
+  @@unique([companyId, email]) // Email unique per company (multi-tenant)
   @@index([companyId])
+  @@index([email]) // Fast lookup during login
   @@map("users")
 }
 
 enum UserRole {
-  ADMIN
-  PROVIDER
+  ADMIN     // Full access to company settings
+  PROVIDER  // Can view their own schedule and bookings
 }
 
 // ============================================================================
-// CLIENT (CUSTOMER) MODEL
+// CLIENT (CUSTOMER) MODEL - No company_id (shared across tenants)
 // ============================================================================
 
 model Client {
@@ -83,12 +95,16 @@ model Client {
   name      String
   phone     String?
   
+  // Optional password for future client portal
+  password  String?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   // Relations
   bookings  Booking[]
 
+  @@index([email]) // Fast lookup during booking
   @@map("clients")
 }
 
@@ -103,6 +119,9 @@ model Provider {
   
   name      String
   email     String
+  bio       String?  // Provider description for client-facing pages
+  imageUrl  String?  // Provider photo
+  isActive  Boolean  @default(true) // Can deactivate without deleting
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -112,8 +131,9 @@ model Provider {
   workingHours  WorkingHours[]
   bookings      Booking[]
 
-  @@unique([companyId, email])
+  @@unique([companyId, email]) // Email unique per company
   @@index([companyId])
+  @@index([companyId, isActive]) // Fast filtering of active providers
   @@map("providers")
 }
 
@@ -131,6 +151,13 @@ model Service {
   duration    Int      // Duration in minutes
   price       Decimal  @db.Decimal(10, 2)
   
+  // Service visibility and availability
+  isActive    Boolean  @default(true)
+  isPublic    Boolean  @default(true) // Show on public booking page
+  
+  // Display order
+  sortOrder   Int      @default(0)
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
@@ -139,6 +166,7 @@ model Service {
   bookings    Booking[]
 
   @@index([companyId])
+  @@index([companyId, isActive, isPublic]) // Fast filtering for public listing
   @@map("services")
 }
 
@@ -155,11 +183,13 @@ model ServiceProvider {
   assignedAt DateTime @default(now())
 
   @@id([serviceId, providerId])
+  @@index([providerId]) // Fast lookup: "which services does this provider offer?"
+  @@index([serviceId])  // Fast lookup: "which providers offer this service?"
   @@map("service_providers")
 }
 
 // ============================================================================
-// WORKING HOURS (MINIMAL ROTA)
+// WORKING HOURS (MINIMAL ROTA) - Recurring Weekly Schedule
 // ============================================================================
 
 model WorkingHours {
@@ -171,15 +201,18 @@ model WorkingHours {
   startTime  String   // Format: "HH:mm" (e.g., "09:00")
   endTime    String   // Format: "HH:mm" (e.g., "17:00")
   
+  // Allow breaking hours (e.g., lunch break)
+  // Provider can have multiple entries per day
+  
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@index([providerId])
+  @@index([providerId, dayOfWeek]) // Critical for availability queries
   @@map("working_hours")
 }
 
 // ============================================================================
-// BOOKING MODEL
+// BOOKING MODEL - The Core Transaction
 // ============================================================================
 
 model Booking {
@@ -196,27 +229,52 @@ model Booking {
   clientId   String
   client     Client        @relation(fields: [clientId], references: [id])
   
+  // Timing
   startTime  DateTime
   endTime    DateTime
+  
+  // Status tracking
   status     BookingStatus @default(PENDING)
   
-  // Payment
-  paymentId  String?       @unique
+  // Payment tracking
+  paymentId  String?       @unique // Stripe Payment Intent ID
   amount     Decimal       @db.Decimal(10, 2)
+  paymentStatus PaymentStatus @default(PENDING)
+  
+  // Cancellation tracking
+  cancelledAt DateTime?
+  cancelledBy String?      // "client" or "provider" or "admin"
+  cancellationReason String?
+  
+  // Additional notes
+  clientNotes String?      // Notes from client during booking
+  providerNotes String?    // Internal notes from provider/admin
   
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
+  // Indexes for performance
   @@index([companyId])
-  @@index([providerId, startTime])
+  @@index([providerId, startTime]) // Critical: availability calculation
   @@index([clientId])
+  @@index([status])
+  @@index([startTime]) // For chronological queries
   @@map("bookings")
 }
 
 enum BookingStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-  NO_SHOW
+  PENDING    // Awaiting payment confirmation
+  CONFIRMED  // Payment successful, booking confirmed
+  CANCELLED  // Booking cancelled
+  COMPLETED  // Service delivered
+  NO_SHOW    // Client didn't show up
+}
+
+enum PaymentStatus {
+  PENDING           // Payment not yet processed
+  PROCESSING        // Payment in progress
+  SUCCEEDED         // Payment successful
+  FAILED            // Payment failed
+  REFUNDED          // Payment refunded
+  PARTIALLY_REFUNDED // Partial refund issued
 }
