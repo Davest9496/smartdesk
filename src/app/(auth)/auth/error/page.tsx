@@ -1,50 +1,69 @@
 'use client'
 
-import { useSearchParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 
-const errorMessages: Record<string, string> = {
-  Configuration: 'There is a problem with the server configuration.',
-  AccessDenied: 'You do not have permission to sign in.',
-  Verification: 'The verification token has expired or has already been used.',
-  Default: 'An error occurred during authentication.',
+function ErrorContent() {
+  const searchParams = useSearchParams()
+  const error = searchParams?.get('error')
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="w-full max-w-md space-y-8 rounded-lg border border-red-200 bg-white p-8 shadow-sm">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600">
+            Authentication Error
+          </h1>
+          <p className="mt-2 text-sm text-gray-600">
+            {error === 'Configuration' &&
+              'There is a problem with the server configuration.'}
+            {error === 'AccessDenied' &&
+              'You do not have permission to sign in.'}
+            {error === 'Verification' &&
+              'The verification token has expired or has already been used.'}
+            {error === 'OAuthSignin' &&
+              'Error in constructing an authorisation URL.'}
+            {error === 'OAuthCallback' &&
+              'Error in handling the response from an OAuth provider.'}
+            {error === 'OAuthCreateAccount' &&
+              'Could not create OAuth provider user in the database.'}
+            {error === 'EmailCreateAccount' &&
+              'Could not create email provider user in the database.'}
+            {error === 'Callback' &&
+              'Error in the OAuth callback handler route.'}
+            {error === 'OAuthAccountNotLinked' &&
+              'Email is already associated with another account.'}
+            {error === 'SessionRequired' &&
+              'Please sign in to access this page.'}
+            {error === 'Default' && 'An unexpected error occurred.'}
+            {!error && 'An unexpected error occurred.'}
+          </p>
+        </div>
+        <div className="mt-6">
+          <a
+            href="/auth/signin"
+            className="flex w-full justify-center rounded-md bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+          >
+            Back to Sign In
+          </a>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function AuthErrorPage() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const error = searchParams.get('error')
-
-  const errorMessage = error
-    ? (errorMessages[error] ?? errorMessages.Default)
-    : errorMessages.Default
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Authentication Error</CardTitle>
-        <CardDescription>
-          We encountered a problem signing you in
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md bg-red-50 border border-red-200 p-4">
-          <p className="text-sm text-red-800">{errorMessage}</p>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-black"></div>
+          </div>
         </div>
-      </CardContent>
-      <CardFooter>
-        <Button className="w-full" onClick={() => router.push('/auth/signin')}>
-          Back to sign in
-        </Button>
-      </CardFooter>
-    </Card>
+      }
+    >
+      <ErrorContent />
+    </Suspense>
   )
 }
