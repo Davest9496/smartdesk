@@ -33,23 +33,31 @@ export default function SignInPage() {
     setIsLoading(true)
     setError('')
 
+    console.log('🔵 Client: Attempting signin for:', email)
+
     try {
       const result = await signIn('credentials', {
-        email,
+        email: email.toLowerCase().trim(), // ✅ Match auth.config
         password,
         redirect: false,
       })
 
+      console.log('🔵 Client: SignIn result:', result)
+
       if (result?.error) {
+        console.log('🔴 Client: Error -', result.error)
         setError('Invalid email or password')
         return
       }
 
-      router.push(callbackUrl)
-      router.refresh()
+      if (result?.ok) {
+        console.log('✅ Client: Success! Redirecting to', callbackUrl)
+        router.push(callbackUrl)
+        router.refresh()
+      }
     } catch (error) {
+      console.error('🔴 Client: Unexpected error:', error)
       setError('An unexpected error occurred')
-      console.error('Sign in error:', error)
     } finally {
       setIsLoading(false)
     }

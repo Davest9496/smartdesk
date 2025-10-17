@@ -1,31 +1,44 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import NextAuth from 'next-auth'
-import { authConfig } from '@/lib/auth.config'
+import { authConfigEdge } from '@/lib/auth.config.edge'
 
 /**
- * NextAuth middleware instance for Edge runtime
- * This uses only the config, no bcrypt imports in the execution path
+ * Edge-optimized middleware
+ * Uses minimal config without Prisma/bcrypt
  */
-const { auth: edgeAuth } = NextAuth(authConfig)
+const { auth: edgeAuth } = NextAuth(authConfigEdge)
 
 export default edgeAuth(async function middleware(req) {
   const session = req.auth
   const path = req.nextUrl.pathname
 
-  // Public routes - no authentication required
-  const publicRoutes = ['/auth/signin', '/auth/signup', '/auth/error']
-  const isPublicRoute = publicRoutes.includes(path) || path.startsWith('/book')
+  // Public routes
+  const publicPaths = [
+    '/auth/signin',
+    '/auth/signup',
+    '/auth/error',
+    '/api/auth',
+  ]
 
-  if (isPublicRoute) {
+  const isPublicPath =
+    publicPaths.some((publicPath) => path.startsWith(publicPath)) ||
+    path.startsWith('/book')
+
+  if (isPublicPath) {
     return NextResponse.next()
   }
 
-  // Dashboard and API routes require authentication
-  const isProtectedRoute =
-    path.startsWith('/dashboard') || path.startsWith('/api/')
+  // Protected API routes
+  if (path.startsWith('/api/') && !session) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    )
+  }
 
-  if (isProtectedRoute && !session) {
+  // Protected dashboard routes
+  if (path.startsWith('/dashboard') && !session) {
     const signInUrl = new URL('/auth/signin', req.url)
     signInUrl.searchParams.set('callbackUrl', path)
     return NextResponse.redirect(signInUrl)
@@ -39,6 +52,12 @@ export default edgeAuth(async function middleware(req) {
     path.startsWith('/api/company/profile')
 
   if (isAdminRoute && session?.user?.role !== 'ADMIN') {
+    if (path.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: Admin access required' },
+        { status: 403 }
+      )
+    }
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
