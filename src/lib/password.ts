@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs'
+import bcrypt from 'bcrypt'
 
 /**
  * Number of salt rounds for bcrypt hashing

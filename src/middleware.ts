@@ -1,6 +1,9 @@
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
+// Force Node.js runtime to support bcrypt and Prisma
+export const runtime = 'nodejs'
+
 export default auth((req) => {
   const token = req.auth
   const path = req.nextUrl.pathname
