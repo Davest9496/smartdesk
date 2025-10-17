@@ -1,66 +1,52 @@
-import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import NextAuth from 'next-auth'
+import { authConfig } from '@/lib/auth.config'
 
-// Force Node.js runtime to support bcrypt and Prisma
-export const runtime = 'nodejs'
+/**
+ * NextAuth middleware instance for Edge runtime
+ * This uses only the config, no bcrypt imports in the execution path
+ */
+const { auth: edgeAuth } = NextAuth(authConfig)
 
-export default auth((req) => {
-  const token = req.auth
+export default edgeAuth(async function middleware(req) {
+  const session = req.auth
   const path = req.nextUrl.pathname
 
-  // Allow public routes
-  if (path.startsWith('/book') || path === '/') {
+  // Public routes - no authentication required
+  const publicRoutes = ['/auth/signin', '/auth/signup', '/auth/error']
+  const isPublicRoute = publicRoutes.includes(path) || path.startsWith('/book')
+
+  if (isPublicRoute) {
     return NextResponse.next()
   }
 
-  // Allow auth routes
-  if (path.startsWith('/auth')) {
-    // Redirect to dashboard if already logged in
-    if (token) {
-      return NextResponse.redirect(new URL('/dashboard', req.url))
-    }
-    return NextResponse.next()
+  // Dashboard and API routes require authentication
+  const isProtectedRoute =
+    path.startsWith('/dashboard') || path.startsWith('/api/')
+
+  if (isProtectedRoute && !session) {
+    const signInUrl = new URL('/auth/signin', req.url)
+    signInUrl.searchParams.set('callbackUrl', path)
+    return NextResponse.redirect(signInUrl)
   }
 
-  // Require authentication for dashboard routes
-  if (path.startsWith('/dashboard')) {
-    if (!token) {
-      const signInUrl = new URL('/auth/signin', req.url)
-      signInUrl.searchParams.set('callbackUrl', path)
-      return NextResponse.redirect(signInUrl)
-    }
+  // Admin-only routes
+  const isAdminRoute =
+    path.startsWith('/dashboard/company') ||
+    path.startsWith('/dashboard/users') ||
+    path.startsWith('/api/company/settings') ||
+    path.startsWith('/api/company/profile')
 
-    // Admin-only routes
-    if (
-      path.startsWith('/dashboard/company') &&
-      (token as { role?: string }).role !== 'ADMIN'
-    ) {
-      return NextResponse.redirect(new URL('/dashboard', req.url))
-    }
-  }
-
-  // API routes requiring authentication
-  if (path.startsWith('/api/')) {
-    // Exclude public API routes
-    if (!path.startsWith('/api/auth') && !path.startsWith('/api/public')) {
-      if (!token) {
-        return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-      }
-    }
+  if (isAdminRoute && session?.user?.role !== 'ADMIN') {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
   return NextResponse.next()
-})
+}) as (req: NextRequest) => Promise<Response>
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

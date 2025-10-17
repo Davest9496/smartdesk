@@ -1,6 +1,9 @@
 import bcrypt from 'bcrypt'
 
 /**
+ * Using bcrypt instead of bcryptjs for better compatibility
+ * bcrypt is a native implementation that works in all environments
+ *
  * Number of salt rounds for bcrypt hashing
  * Higher = more secure but slower
  * 12 is a good balance for production
