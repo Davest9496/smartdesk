@@ -18,13 +18,13 @@ import { z } from 'zod'
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId } = await getTenantContext()
 
     const provider = await prisma.provider.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       select: { companyId: true },
     })
 
@@ -35,7 +35,7 @@ export async function GET(
     withTenantIsolation(provider, companyId)
 
     const workingHours = await prisma.workingHours.findMany({
-      where: { providerId: params.id },
+      where: { providerId: (await params).id },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
     })
 
@@ -57,7 +57,7 @@ export async function GET(
  */
 export async function PUT(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId, role } = await getTenantContext()
@@ -67,7 +67,7 @@ export async function PUT(
     }
 
     const provider = await prisma.provider.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       select: { companyId: true },
     })
 
@@ -91,23 +91,25 @@ export async function PUT(
     }
 
     // Replace all working hours in a transaction
+    const providerId = (await params).id
+
     const result = await prisma.$transaction(async (tx) => {
       // Delete existing working hours
       await tx.workingHours.deleteMany({
-        where: { providerId: params.id },
+        where: { providerId },
       })
 
       // Create new working hours
       await tx.workingHours.createMany({
         data: workingHours.map((hours) => ({
-          providerId: params.id,
+          providerId,
           ...hours,
         })),
       })
 
       // Fetch the created records
       const newWorkingHours = await tx.workingHours.findMany({
-        where: { providerId: params.id },
+        where: { providerId },
         orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
       })
 

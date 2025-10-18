@@ -15,13 +15,13 @@ import { z } from 'zod'
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId } = await getTenantContext()
 
     const service = await prisma.service.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       include: {
         providers: {
           include: {
@@ -67,7 +67,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId, role } = await getTenantContext()
@@ -77,7 +77,7 @@ export async function PATCH(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       select: { companyId: true },
     })
 
@@ -91,7 +91,7 @@ export async function PATCH(
     const validatedData = updateServiceSchema.parse(body)
 
     const updatedService = await prisma.service.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: validatedData,
       include: {
         providers: {
@@ -127,7 +127,7 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId, role } = await getTenantContext()
@@ -137,7 +137,7 @@ export async function DELETE(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       select: { companyId: true },
     })
 
@@ -148,7 +148,7 @@ export async function DELETE(
     withTenantIsolation(service, companyId)
 
     await prisma.service.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: { isActive: false },
     })
 

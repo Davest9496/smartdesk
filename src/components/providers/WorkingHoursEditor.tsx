@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +17,6 @@ interface WorkingHour {
 interface WorkingHoursEditorProps {
   providerId: string
   initialHours: WorkingHour[]
-  onSave: () => void
 }
 
 const DAYS = [
@@ -32,8 +32,8 @@ const DAYS = [
 export function WorkingHoursEditor({
   providerId,
   initialHours,
-  onSave,
 }: WorkingHoursEditorProps) {
+  const router = useRouter()
   const [hours, setHours] = useState<WorkingHour[]>(initialHours)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,7 +77,7 @@ export function WorkingHoursEditor({
         throw new Error(result.error || 'Failed to update working hours')
       }
 
-      onSave()
+      router.refresh() // Refresh the page data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

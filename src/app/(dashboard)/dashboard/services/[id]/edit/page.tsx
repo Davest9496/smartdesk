@@ -5,16 +5,17 @@ import { ServiceForm } from '@/components/services/ServiceForm'
 import { ProviderAssignment } from '@/components/services/ProviderAssignment'
 
 interface EditServicePageProps {
-  params: { id: string }
+  params: Promise<{ id: string }> // Changed: params is now a Promise
 }
 
 export default async function EditServicePage({
   params,
 }: EditServicePageProps) {
+  const { id } = await params // Added: await params
   const { companyId } = await getTenantContext()
 
   const service = await prisma.service.findUnique({
-    where: { id: params.id },
+    where: { id }, // Changed: use awaited id
     include: {
       providers: {
         select: {
@@ -54,7 +55,6 @@ export default async function EditServicePage({
       <ProviderAssignment
         serviceId={service.id}
         currentProviderIds={service.providers.map((sp) => sp.providerId)}
-        onSave={() => {}}
       />
     </div>
   )

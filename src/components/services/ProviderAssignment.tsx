@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -15,14 +16,13 @@ interface Provider {
 interface ProviderAssignmentProps {
   serviceId: string
   currentProviderIds: string[]
-  onSave: () => void
 }
 
 export function ProviderAssignment({
   serviceId,
   currentProviderIds,
-  onSave,
 }: ProviderAssignmentProps) {
+  const router = useRouter()
   const [providers, setProviders] = useState<Provider[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>(currentProviderIds)
   const [isLoading, setIsLoading] = useState(true)
@@ -78,7 +78,7 @@ export function ProviderAssignment({
         throw new Error(result.error || 'Failed to assign providers')
       }
 
-      onSave()
+      router.refresh() // Refresh the page data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

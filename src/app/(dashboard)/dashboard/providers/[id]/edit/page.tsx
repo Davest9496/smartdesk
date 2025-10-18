@@ -5,16 +5,17 @@ import { ProviderForm } from '@/components/providers/ProviderForm'
 import { WorkingHoursEditor } from '@/components/providers/WorkingHoursEditor'
 
 interface EditProviderPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }> // Changed: params is now a Promise
 }
 
 export default async function EditProviderPage({
   params,
 }: EditProviderPageProps) {
+  const { id } = await params // Added: await params
   const { companyId } = await getTenantContext()
 
   const provider = await prisma.provider.findUnique({
-    where: { id: params.id },
+    where: { id }, // Changed: use awaited id
     include: {
       workingHours: {
         orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
@@ -51,7 +52,6 @@ export default async function EditProviderPage({
       <WorkingHoursEditor
         providerId={provider.id}
         initialHours={provider.workingHours}
-        onSave={() => {}}
       />
     </div>
   )

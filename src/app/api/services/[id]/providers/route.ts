@@ -1,13 +1,15 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getTenantContext, withTenantIsolation } from '@/lib/tenant-context'
-import {
-  successResponse,
-  errorResponse,
-  notFoundResponse,
-} from '@/lib/api-response'
-import { assignProvidersSchema } from '@/lib/validations/service'
+import { getTenantContext } from '@/lib/tenant-context'
+import { successResponse, errorResponse } from '@/lib/api-response'
 import { z } from 'zod'
+
+// Validation schema for provider assignment
+const assignProvidersSchema = z.object({
+  providerIds: z
+    .array(z.string().cuid())
+    .min(1, 'At least one provider required'),
+})
 
 /**
  * PUT /api/services/[id]/providers
@@ -15,26 +17,29 @@ import { z } from 'zod'
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // ✅ Params is now a Promise
 ) {
   try {
     const { companyId, role } = await getTenantContext()
+    const { id: serviceId } = await params // ✅ Await params before accessing properties
 
     if (role !== 'ADMIN') {
       return errorResponse('Forbidden: Admin access required', 403)
     }
 
-    const service = await prisma.service.findUnique({
-      where: { id: params.id },
-      select: { companyId: true },
+    // Verify service exists and belongs to tenant
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        companyId,
+      },
     })
 
     if (!service) {
-      return notFoundResponse('Service')
+      return errorResponse('Service not found', 404)
     }
 
-    withTenantIsolation(service, companyId)
-
+    // Parse and validate request body
     const body = await request.json()
     const { providerIds } = assignProvidersSchema.parse(body)
 
@@ -43,57 +48,121 @@ export async function PUT(
       where: {
         id: { in: providerIds },
         companyId,
-        isActive: true,
       },
     })
 
     if (providers.length !== providerIds.length) {
-      return errorResponse('One or more providers not found or inactive', 400)
+      return errorResponse('One or more providers not found', 400)
     }
 
-    // Replace provider assignments in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Remove existing assignments
+    // Replace existing assignments with new ones (transactional)
+    await prisma.$transaction(async (tx) => {
+      // Delete existing assignments
       await tx.serviceProvider.deleteMany({
-        where: { serviceId: params.id },
+        where: { serviceId },
       })
 
       // Create new assignments
       await tx.serviceProvider.createMany({
         data: providerIds.map((providerId) => ({
-          serviceId: params.id,
+          serviceId,
           providerId,
         })),
       })
+    })
 
-      // Return updated service with providers
-      return tx.service.findUnique({
-        where: { id: params.id },
-        include: {
-          providers: {
-            include: {
-              provider: true,
+    // Fetch updated service with providers
+    const updatedService = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: {
+        providers: {
+          include: {
+            provider: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
             },
           },
         },
-      })
+      },
     })
 
-    return successResponse(result)
+    return successResponse(updatedService)
   } catch (error) {
     console.error('Error assigning providers:', error)
 
-    if (error instanceof Error && error.message.includes('Forbidden')) {
-      return errorResponse('Forbidden', 403)
-    }
-
     if (error instanceof z.ZodError) {
-      return errorResponse(
-        `Validation failed: ${error.issues.map((e) => e.message).join(', ')}`,
-        400
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation failed',
+          details: error.issues,
+        },
+        { status: 400 }
       )
     }
 
+    if (error instanceof Error) {
+      if (error.message.includes('Unauthorised')) {
+        return errorResponse('Unauthorised', 401)
+      }
+      if (error.message.includes('Forbidden')) {
+        return errorResponse('Forbidden', 403)
+      }
+    }
+
     return errorResponse('Failed to assign providers', 500)
+  }
+}
+
+/**
+ * GET /api/services/[id]/providers
+ * Get all providers assigned to a service
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> } // ✅ Params is now a Promise
+) {
+  try {
+    const { companyId } = await getTenantContext()
+    const { id: serviceId } = await params // ✅ Await params
+
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        companyId,
+      },
+      include: {
+        providers: {
+          include: {
+            provider: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                bio: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!service) {
+      return errorResponse('Service not found', 404)
+    }
+
+    return successResponse(service.providers)
+  } catch (error) {
+    console.error('Error fetching service providers:', error)
+
+    if (error instanceof Error && error.message.includes('Unauthorised')) {
+      return errorResponse('Unauthorised', 401)
+    }
+
+    return errorResponse('Failed to fetch service providers', 500)
   }
 }

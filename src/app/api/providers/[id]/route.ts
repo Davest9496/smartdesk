@@ -15,13 +15,13 @@ import { z } from 'zod'
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId } = await getTenantContext()
 
     const provider = await prisma.provider.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       include: {
         services: {
           include: {
@@ -67,7 +67,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId, role } = await getTenantContext()
@@ -78,7 +78,7 @@ export async function PATCH(
 
     // Verify provider exists and belongs to this company
     const existingProvider = await prisma.provider.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
     })
 
     if (!existingProvider) {
@@ -96,7 +96,7 @@ export async function PATCH(
         where: {
           companyId,
           email: validatedData.email,
-          id: { not: params.id },
+          id: { not: (await params).id },
         },
       })
 
@@ -106,7 +106,7 @@ export async function PATCH(
     }
 
     const updatedProvider = await prisma.provider.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: validatedData,
       include: {
         services: {
@@ -148,7 +148,7 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { companyId, role } = await getTenantContext()
@@ -158,7 +158,7 @@ export async function DELETE(
     }
 
     const provider = await prisma.provider.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
     })
 
     if (!provider) {
@@ -169,7 +169,7 @@ export async function DELETE(
 
     // Soft delete by setting isActive to false
     await prisma.provider.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: { isActive: false },
     })
 

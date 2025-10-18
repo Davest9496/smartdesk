@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { getTenantContext } from '@/lib/tenant-context'
 import { Button } from '@/components/ui/button'
-import { Plus } from '@/components/ui/icons'
+import { Plus, Edit } from '@/components/ui/icons'
 
 export default async function ProvidersPage() {
   const { companyId } = await getTenantContext()
@@ -63,13 +63,45 @@ export default async function ProvidersPage() {
       ) : (
         <div className="grid gap-4">
           {providers.map((provider) => (
-            <div key={provider.id} className="border rounded-lg p-4">
-              <h3 className="font-semibold">{provider.name}</h3>
-              <p className="text-sm text-muted-foreground">{provider.email}</p>
-              <p className="text-xs mt-2">
-                Services: {provider.services.length} | Bookings:{' '}
-                {provider._count.bookings}
-              </p>
+            <div key={provider.id} className="border rounded-lg p-4 bg-white">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{provider.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {provider.email}
+                  </p>
+                  {provider.bio && (
+                    <p className="text-sm mt-2 text-gray-600">{provider.bio}</p>
+                  )}
+                </div>
+                <Link href={`/dashboard/providers/${provider.id}/edit`}>
+                  <Button variant="outline" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </Link>
+              </div>
+
+              <div className="mt-4 flex gap-6 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Services:</span>{' '}
+                  <span className="font-semibold">
+                    {provider.services.length}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Working Hours:</span>{' '}
+                  <span className="font-semibold">
+                    {provider.workingHours.length}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Bookings:</span>{' '}
+                  <span className="font-semibold">
+                    {provider._count.bookings}
+                  </span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
