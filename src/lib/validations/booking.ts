@@ -19,12 +19,17 @@ export const createBookingSchema = z.object({
   clientName: z
     .string()
     .min(2, 'Name must be at least 2 characters')
-    .max(100, 'Name must be less than 100 characters'),
-  clientEmail: z.string().email('Invalid email address').toLowerCase(),
+    .max(100, 'Name must be less than 100 characters')
+    .trim(),
+  clientEmail: z.string().email('Invalid email address').toLowerCase().trim(),
+
+  // Phone validation - more lenient for international formats
   clientPhone: z
     .string()
-    .regex(/^(\+\d{1,3}[- ]?)?\d{10,}$/, 'Invalid phone number format')
+    .min(1)
     .optional()
+    .or(z.literal('')) // Allow empty string
+    .transform((val) => (val === '' ? null : val)) // Convert empty to null
     .nullable(),
 
   // Optional notes
@@ -32,6 +37,8 @@ export const createBookingSchema = z.object({
     .string()
     .max(500, 'Notes must be less than 500 characters')
     .optional()
+    .or(z.literal(''))
+    .transform((val) => (val === '' ? null : val))
     .nullable(),
 })
 
@@ -47,3 +54,5 @@ export const cancelBookingSchema = z.object({
     .optional(),
   cancelledBy: z.enum(['client', 'provider', 'admin']),
 })
+
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>

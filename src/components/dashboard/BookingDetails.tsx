@@ -6,19 +6,66 @@ import { format } from 'date-fns'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type {
-  Booking,
-  Service,
-  Provider,
-  Client,
-  Company,
   CompanySettings,
+  BookingStatus,
+  PaymentStatus,
 } from '@prisma/client'
 
-type BookingWithFullDetails = Booking & {
-  service: Service
-  provider: Pick<Provider, 'id' | 'name' | 'email' | 'bio'>
-  client: Pick<Client, 'id' | 'name' | 'email' | 'phone'>
-  company: Pick<Company, 'id' | 'name'> & {
+/**
+ * Serialized booking type with Decimal converted to number
+ *
+ * Why this approach:
+ * - Prisma Decimal type can't be passed to Client Components
+ * - We convert to number in Server Component
+ * - This type reflects the serialized structure
+ */
+type BookingWithFullDetails = {
+  id: string
+  companyId: string
+  serviceId: string
+  providerId: string
+  clientId: string
+  startTime: Date
+  endTime: Date
+  status: BookingStatus
+  paymentId: string | null
+  amount: number // ✅ Changed from Decimal
+  paymentStatus: PaymentStatus
+  cancelledAt: Date | null
+  cancelledBy: string | null
+  cancellationReason: string | null
+  clientNotes: string | null
+  providerNotes: string | null
+  createdAt: Date
+  updatedAt: Date
+  service: {
+    id: string
+    companyId: string
+    name: string
+    description: string | null
+    duration: number
+    price: number // ✅ Changed from Decimal
+    isActive: boolean
+    isPublic: boolean
+    sortOrder: number
+    createdAt: Date
+    updatedAt: Date
+  }
+  provider: {
+    id: string
+    name: string
+    email: string
+    bio: string | null
+  }
+  client: {
+    id: string
+    name: string
+    email: string
+    phone: string | null
+  }
+  company: {
+    id: string
+    name: string
     settings: CompanySettings | null
   }
 }
@@ -65,7 +112,7 @@ export function BookingDetails({ booking, userRole }: BookingDetailsProps) {
 
       router.refresh()
     } catch (error) {
-      console.error('Failed to update booking:', error)
+      console.error(error)
       alert('Failed to update booking. Please try again.')
     } finally {
       setIsUpdating(false)
@@ -101,9 +148,7 @@ export function BookingDetails({ booking, userRole }: BookingDetailsProps) {
               </div>
               <div>
                 <span className="text-gray-600">Price:</span>
-                <p className="font-medium">
-                  £{Number(booking.amount).toFixed(2)}
-                </p>
+                <p className="font-medium">£{booking.amount.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-gray-600">Status:</span>

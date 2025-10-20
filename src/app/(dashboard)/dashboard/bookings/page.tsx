@@ -5,6 +5,7 @@ import { BookingStatus } from '@prisma/client'
 import { BookingsList } from '@/components/dashboard/BookingsList'
 import { BookingsFilter } from '@/components/dashboard/BookingsFilter'
 import { startOfDay, endOfDay, addDays } from 'date-fns'
+import type { BookingWithDetails } from '@/types/booking'
 
 interface BookingsPageProps {
   searchParams: Promise<{
@@ -22,6 +23,7 @@ interface BookingsPageProps {
  * - Server-side data fetching for performance
  * - URL-based filtering (shareable URLs)
  * - Real-time data (no stale cache)
+ * - Serialization for client components (Decimal → number)
  */
 export default async function BookingsPage({
   searchParams,
@@ -103,6 +105,18 @@ export default async function BookingsPage({
     orderBy: { name: 'asc' },
   })
 
+  // ✅ Serialize bookings for client component
+  // Convert Decimal fields to numbers (amount and service.price)
+  // Type assertion needed because spread operator includes extra Prisma metadata
+  const serializedBookings = bookings.map((booking) => ({
+    ...booking,
+    amount: Number(booking.amount), // Decimal → number
+    service: {
+      ...booking.service,
+      price: Number(booking.service.price), // Decimal → number
+    },
+  })) as BookingWithDetails[]
+
   return (
     <div className="space-y-6">
       <div>
@@ -114,7 +128,7 @@ export default async function BookingsPage({
 
       <BookingsFilter providers={providers} />
 
-      <BookingsList bookings={bookings} />
+      <BookingsList bookings={serializedBookings} />
     </div>
   )
 }

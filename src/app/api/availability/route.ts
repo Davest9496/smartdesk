@@ -1,10 +1,16 @@
 import { NextRequest } from 'next/server'
 import { successResponse, errorResponse } from '@/lib/api-response'
 import { calculateAvailableSlots } from '@/lib/availability/calculator'
+import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 /**
  * Validation schema for availability query parameters
+ *
+ * Why no companyId:
+ * - Public endpoint (no auth required)
+ * - CompanyId derived from serviceId for security
+ * - Simpler client-side API calls
  */
 const availabilityQuerySchema = z.object({
   providerId: z.string().cuid('Invalid provider ID'),
@@ -16,7 +22,6 @@ const availabilityQuerySchema = z.object({
     },
     { message: 'Invalid date format. Use ISO 8601 (YYYY-MM-DD)' }
   ),
-  companyId: z.string().cuid('Invalid company ID'),
 })
 
 /**
@@ -25,15 +30,14 @@ const availabilityQuerySchema = z.object({
  * Query parameters:
  * - providerId: Provider's ID
  * - serviceId: Service's ID
- * - date: Date in YYYY-MM-DD format
- * - companyId: Company ID (for multi-tenancy)
+ * - date: Date in ISO 8601 format (YYYY-MM-DD)
  *
  * Returns: Array of available time slots
  *
  * Why public endpoint:
  * - Clients need to see availability before booking
  * - No authentication required (read-only operation)
- * - Company ID validates the request belongs to the correct tenant
+ * - Multi-tenancy enforced by validating service belongs to provider's company
  */
 export async function GET(request: NextRequest) {
   try {
@@ -44,21 +48,67 @@ export async function GET(request: NextRequest) {
       providerId: searchParams.get('providerId'),
       serviceId: searchParams.get('serviceId'),
       date: searchParams.get('date'),
-      companyId: searchParams.get('companyId'),
     }
 
     // Validate parameters
     const validatedParams = availabilityQuerySchema.parse(queryParams)
 
+    // 🔒 Security: Derive companyId from service
+    // This ensures the service exists and gets the correct tenant context
+    const service = await prisma.service.findUnique({
+      where: { id: validatedParams.serviceId },
+      select: {
+        companyId: true,
+        isActive: true,
+        isPublic: true,
+      },
+    })
+
+    if (!service) {
+      return errorResponse('Service not found', 404)
+    }
+
+    if (!service.isActive || !service.isPublic) {
+      return errorResponse('Service is not available for booking', 400)
+    }
+
+    // 🔒 Verify provider belongs to same company
+    const provider = await prisma.provider.findUnique({
+      where: { id: validatedParams.providerId },
+      select: {
+        companyId: true,
+        isActive: true,
+      },
+    })
+
+    if (!provider) {
+      return errorResponse('Provider not found', 404)
+    }
+
+    if (provider.companyId !== service.companyId) {
+      return errorResponse('Provider does not offer this service', 400)
+    }
+
+    if (!provider.isActive) {
+      return errorResponse('Provider is not available', 400)
+    }
+
     // Parse date
     const date = new Date(validatedParams.date)
 
-    // Calculate availability
+    // Validate date is not in the past
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (date < today) {
+      return errorResponse('Cannot book appointments in the past', 400)
+    }
+
+    // Calculate availability using the derived companyId
     const availableSlots = await calculateAvailableSlots({
       providerId: validatedParams.providerId,
       serviceId: validatedParams.serviceId,
       date,
-      companyId: validatedParams.companyId,
+      companyId: service.companyId, // ✅ Derived from service
     })
 
     return successResponse({

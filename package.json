@@ -15,7 +15,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "prepare": "husky"
+    "prepare": "husky",
+    "booking-link": "tsx scripts/get-booking-link.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -59,6 +60,7 @@
     "prettier": "^3.6.2",
     "prisma": "^6.17.1",
     "tailwindcss": "^3.4.18",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

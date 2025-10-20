@@ -5,13 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import Link from 'next/link'
-import type { Booking, Service, Provider, Client } from '@prisma/client'
-
-type BookingWithDetails = Booking & {
-  service: Service
-  provider: Pick<Provider, 'id' | 'name' | 'email'>
-  client: Pick<Client, 'id' | 'name' | 'email' | 'phone'>
-}
+import type { BookingWithDetails } from '@/types/booking'
+import type { BookingStatus, PaymentStatus } from '@prisma/client'
 
 interface BookingsListProps {
   bookings: BookingWithDetails[]
@@ -24,6 +19,11 @@ interface BookingsListProps {
  * - Mobile-friendly
  * - Scannable information hierarchy
  * - Quick status identification with badges
+ *
+ * Why we use BookingWithDetails from types:
+ * - Server Components serialize Decimal → number
+ * - Client Components can't handle Prisma Decimal class
+ * - Type consistency across the app
  */
 export function BookingsList({ bookings }: BookingsListProps) {
   if (bookings.length === 0) {
@@ -75,7 +75,7 @@ export function BookingsList({ bookings }: BookingsListProps) {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-2xl font-bold">
-                  £{Number(booking.amount).toFixed(2)}
+                  £{booking.amount.toFixed(2)}
                 </p>
                 <PaymentStatusBadge status={booking.paymentStatus} />
               </div>
@@ -91,8 +91,8 @@ export function BookingsList({ bookings }: BookingsListProps) {
   )
 }
 
-function BookingStatusBadge({ status }: { status: string }) {
-  const variants: Record<string, string> = {
+function BookingStatusBadge({ status }: { status: BookingStatus }) {
+  const variants: Record<BookingStatus, string> = {
     PENDING: 'bg-yellow-100 text-yellow-800',
     CONFIRMED: 'bg-green-100 text-green-800',
     CANCELLED: 'bg-red-100 text-red-800',
@@ -100,20 +100,17 @@ function BookingStatusBadge({ status }: { status: string }) {
     NO_SHOW: 'bg-gray-100 text-gray-800',
   }
 
-  return (
-    <Badge className={variants[status] || 'bg-gray-100 text-gray-800'}>
-      {status}
-    </Badge>
-  )
+  return <Badge className={variants[status]}>{status}</Badge>
 }
 
-function PaymentStatusBadge({ status }: { status: string }) {
-  const variants: Record<string, string> = {
+function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+  const variants: Record<PaymentStatus, string> = {
     PENDING: 'bg-yellow-100 text-yellow-800',
     PROCESSING: 'bg-blue-100 text-blue-800',
     SUCCEEDED: 'bg-green-100 text-green-800',
     FAILED: 'bg-red-100 text-red-800',
     REFUNDED: 'bg-purple-100 text-purple-800',
+    PARTIALLY_REFUNDED: 'bg-purple-100 text-purple-800',
   }
 
   return (

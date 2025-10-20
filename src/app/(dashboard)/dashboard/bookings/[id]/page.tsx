@@ -8,15 +8,6 @@ interface BookingDetailPageProps {
   params: Promise<{ id: string }>
 }
 
-/**
- * Individual booking detail page
- *
- * Why separate page:
- * - Shows full booking details
- * - Allows status updates
- * - Shows client contact info
- * - Print-friendly view
- */
 export default async function BookingDetailPage({
   params,
 }: BookingDetailPageProps) {
@@ -70,9 +61,22 @@ export default async function BookingDetailPage({
     notFound()
   }
 
+  // ✅ Convert Decimal to number for Client Components
+  const serializedBooking = {
+    ...booking,
+    amount: booking.amount.toNumber(),
+    service: {
+      ...booking.service,
+      price: booking.service.price.toNumber(),
+    },
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
-      <BookingDetails booking={booking} userRole={session.user.role} />
+      <BookingDetails
+        booking={serializedBooking}
+        userRole={session.user.role}
+      />
     </div>
   )
 }
