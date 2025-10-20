@@ -15,6 +15,17 @@ interface NavItem {
   adminOnly?: boolean
 }
 
+/**
+ * Dashboard sidebar navigation
+ *
+ * Why this structure:
+ * - Role-based access control (filter items by role)
+ * - Active state highlighting for current page
+ * - Icons for better visual hierarchy
+ * - Sidebar layout for scalability (can add more items)
+ *
+ * Note: Bookings should be visible to both ADMIN and PROVIDER roles
+ */
 export default function DashboardNav({ role }: DashboardNavProps) {
   const pathname = usePathname()
 
@@ -52,6 +63,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
           <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
+      // ✅ REMOVED adminOnly - both ADMIN and PROVIDER can view bookings
     },
     {
       label: 'Services',
@@ -122,7 +134,11 @@ export default function DashboardNav({ role }: DashboardNavProps) {
     <nav className="w-64 bg-white border-r border-slate-200 min-h-screen p-4">
       <div className="space-y-1">
         {filteredNavItems.map((item) => {
-          const isActive = pathname === item.href
+          // Check if current page or any child page is active
+          const isActive =
+            pathname === item.href ||
+            (item.href !== '/dashboard' && pathname.startsWith(item.href))
+
           return (
             <Link
               key={item.href}

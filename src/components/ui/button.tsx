@@ -3,10 +3,24 @@ import { cn } from '@/lib/utils'
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'outline' | 'ghost'
+  variant?: 'default' | 'outline' | 'ghost' | 'destructive'
   size?: 'default' | 'sm' | 'lg'
 }
 
+/**
+ * Button component with multiple variants and sizes
+ *
+ * Variants:
+ * - default: Primary action (dark slate background)
+ * - outline: Secondary action (border only)
+ * - ghost: Tertiary action (no border, transparent)
+ * - destructive: Dangerous action (red, for delete/cancel operations)
+ *
+ * Sizes:
+ * - default: Standard button (h-10, text-sm)
+ * - sm: Small button (h-8, text-xs)
+ * - lg: Large button (h-12, text-base)
+ */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', ...props }, ref) => {
     return (
@@ -20,6 +34,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'border border-slate-300 bg-white text-slate-900 hover:bg-slate-100':
               variant === 'outline',
             'text-slate-900 hover:bg-slate-100': variant === 'ghost',
+            'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600':
+              variant === 'destructive',
           },
           {
             'h-10 px-4 py-2 text-sm': size === 'default',
