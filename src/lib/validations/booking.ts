@@ -55,4 +55,24 @@ export const cancelBookingSchema = z.object({
   cancelledBy: z.enum(['client', 'provider', 'admin']),
 })
 
+/**
+ * Payment intent creation schema
+ */
+export const createPaymentIntentSchema = z.object({
+  bookingId: z.string().cuid('Invalid booking ID'),
+  currency: z
+    .string()
+    .length(3, 'Currency must be 3 characters')
+    .default('GBP')
+    .transform((val) => val.toUpperCase()),
+})
+
+/**
+ * Payment confirmation schema (from client after Stripe confirms)
+ */
+export const confirmPaymentSchema = z.object({
+  bookingId: z.string().cuid(),
+  paymentIntentId: z.string().startsWith('pi_', 'Invalid payment intent ID'),
+})
+
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
