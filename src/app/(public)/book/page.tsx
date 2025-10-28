@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { ServiceCard } from '@/components/booking/ServiceCard'
+import { PublicServiceCard } from '@/components/booking/PublicServiceCard'
 
 interface BookingLandingPageProps {
   searchParams: Promise<{
@@ -14,6 +14,7 @@ interface BookingLandingPageProps {
  * - No authentication required
  * - CompanyId in URL for multi-tenancy
  * - Shows only active, public services
+ * - Transforms Prisma Decimal to string for client serialization
  *
  * Access: https://yourdomain.com/book?companyId=xxx
  */
@@ -61,7 +62,7 @@ export default async function BookingLandingPage({
   }
 
   // Fetch public services
-  const services = await prisma.service.findMany({
+  const servicesRaw = await prisma.service.findMany({
     where: {
       companyId,
       isActive: true,
@@ -89,7 +90,7 @@ export default async function BookingLandingPage({
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
   })
 
-  if (services.length === 0) {
+  if (servicesRaw.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -103,6 +104,21 @@ export default async function BookingLandingPage({
       </div>
     )
   }
+
+  // ✅ Transform Prisma data for client serialization
+  const services = servicesRaw.map((service) => ({
+    id: service.id,
+    name: service.name,
+    description: service.description,
+    duration: service.duration,
+    price: service.price.toString(), // Convert Decimal to string
+    providers: service.providers.map((sp) => ({
+      id: sp.provider.id,
+      name: sp.provider.name,
+      bio: sp.provider.bio,
+      imageUrl: sp.provider.imageUrl,
+    })),
+  }))
 
   const currency = company.settings?.currency || 'GBP'
 
@@ -124,7 +140,7 @@ export default async function BookingLandingPage({
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((service) => (
-            <ServiceCard
+            <PublicServiceCard
               key={service.id}
               service={service}
               companyId={companyId}

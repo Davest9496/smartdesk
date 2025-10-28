@@ -16,7 +16,11 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "prepare": "husky",
-    "booking-link": "tsx scripts/get-booking-link.ts"
+    "booking-link": "tsx scripts/get-booking-link.ts",
+    "script:verify": "tsx scripts/verify-migration.ts",
+    "script:test-connection": "tsx scripts/test-supabase-connection.ts",
+    "script:seed": "tsx scripts/seed.ts",
+    "script:create-admin": "tsx scripts/create-admin.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
