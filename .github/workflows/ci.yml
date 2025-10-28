@@ -31,6 +31,15 @@ jobs:
 
       - name: Type check
         run: npm run type-check
+        env:
+          # ✅ Dummy keys for type checking (won't be used, but prevents import errors)
+          STRIPE_SECRET_KEY: "sk_test_dummy_key_for_ci_build"
+          STRIPE_PUBLISHABLE_KEY: "pk_test_dummy_key_for_ci_build"
+          STRIPE_WEBHOOK_SECRET: "whsec_dummy_for_ci_build"
+          DATABASE_URL: "postgresql://user:password@localhost:5432/test"
+          NEXTAUTH_SECRET: "test-secret-for-ci-only"
+          NEXTAUTH_URL: "http://localhost:3000"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
 
       - name: Lint check
         run: npm run lint
@@ -42,9 +51,14 @@ jobs:
         run: npm run build
         env:
           SKIP_ENV_VALIDATION: true
+          # ✅ Dummy Stripe keys allow build to succeed
+          STRIPE_SECRET_KEY: "sk_test_dummy_key_for_ci_build"
+          STRIPE_PUBLISHABLE_KEY: "pk_test_dummy_key_for_ci_build"
+          STRIPE_WEBHOOK_SECRET: "whsec_dummy_for_ci_build"
           DATABASE_URL: "postgresql://user:password@localhost:5432/test"
           NEXTAUTH_SECRET: "test-secret-for-ci-only"
           NEXTAUTH_URL: "http://localhost:3000"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
 
   build:
     name: Build Check
@@ -73,6 +87,11 @@ jobs:
         run: npm run build
         env:
           SKIP_ENV_VALIDATION: true
+          # ✅ Dummy Stripe keys allow build to succeed
+          STRIPE_SECRET_KEY: "sk_test_dummy_key_for_ci_build"
+          STRIPE_PUBLISHABLE_KEY: "pk_test_dummy_key_for_ci_build"
+          STRIPE_WEBHOOK_SECRET: "whsec_dummy_for_ci_build"
           DATABASE_URL: "postgresql://user:password@localhost:5432/test"
           NEXTAUTH_SECRET: "test-secret-for-ci-only"
           NEXTAUTH_URL: "http://localhost:3000"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"

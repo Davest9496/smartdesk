@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { stripe, poundsToPence } from '@/lib/stripe'
+import { getStripe, poundsToPence } from '@/lib/stripe'
 import { getTenantContext } from '@/lib/tenant-context'
 import {
   successResponse,
@@ -18,10 +18,19 @@ const createCheckoutSessionSchema = z.object({
  * Create a Stripe Checkout Session and redirect user to Stripe-hosted payment page
  *
  * Why Checkout Session over Payment Intents:
- * - Stripe hosts the entire payment page (faster implementation)
- * - PCI compliance handled automatically
- * - Built-in mobile-optimised UI
- * - Supports all payment methods out of the box
+ * - ✅ Stripe hosts the entire payment page (faster MVP implementation)
+ * - ✅ PCI compliance handled automatically (no card data touches our servers)
+ * - ✅ Built-in mobile-optimised UI
+ * - ✅ Supports all payment methods out of the box (cards, wallets, BNPL)
+ * - ✅ Automatic retry logic for failed payments
+ * - ✅ Built-in fraud prevention (Stripe Radar)
+ *
+ * Flow:
+ * 1. Client creates booking (status: PENDING)
+ * 2. Client calls this API to get Checkout Session URL
+ * 3. Client redirects to Stripe-hosted payment page
+ * 4. After payment, Stripe redirects back to success_url
+ * 5. Webhook confirms payment and updates booking to CONFIRMED
  */
 export async function POST(request: NextRequest) {
   try {
@@ -60,6 +69,9 @@ export async function POST(request: NextRequest) {
         400
       )
     }
+
+    // Get Stripe instance (lazy initialization - only now)
+    const stripe = getStripe()
 
     // Get company currency (defaults to GBP)
     const currency = booking.company.settings?.currency || 'GBP'
@@ -133,6 +145,11 @@ export async function POST(request: NextRequest) {
       }
       if (error.message.includes('Forbidden')) {
         return errorResponse('Forbidden', 403)
+      }
+      if (error.message.includes('STRIPE_SECRET_KEY')) {
+        // Payment service not configured
+        console.error('❌ Stripe not configured:', error.message)
+        return errorResponse('Payment service unavailable', 503)
       }
     }
 

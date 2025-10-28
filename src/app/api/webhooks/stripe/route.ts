@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import type { Stripe } from 'stripe'
 
@@ -11,6 +11,10 @@ import type { Stripe } from 'stripe'
  * SECURITY: Verifies webhook signature to prevent spoofing
  * RELIABILITY: Returns 500 on errors so Stripe retries
  * IDEMPOTENCY: Handles duplicate webhooks gracefully
+ *
+ * Webhook events handled:
+ * - checkout.session.completed: Confirms booking after successful payment
+ * - checkout.session.expired: Resets booking when payment times out
  */
 export async function POST(request: NextRequest) {
   const body = await request.text()
@@ -33,6 +37,9 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event
 
   try {
+    // Get Stripe instance (lazy initialization)
+    const stripe = getStripe()
+
     // Verify webhook signature (critical security step)
     event = stripe.webhooks.constructEvent(
       body,
